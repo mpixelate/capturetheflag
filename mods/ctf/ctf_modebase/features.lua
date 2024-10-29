@@ -23,12 +23,16 @@ local function update_playertag(player, t, nametag, team_nametag, symbol_nametag
 	end
 
 	local entity_players = {}
-	local nametag_players = table.copy(ctf_teams.online_players[t].players)
+	local nametag_players = ctf_modebase.get_allowed_nametag_observers(player)
 	local symbol_players = {}
 	nametag_players[player:get_player_name()] = nil
 
-	for n in pairs(table.copy(nametag_players)) do
-		local setting = ctf_settings.get(minetest.get_player_by_name(n), "teammate_nametag_style")
+	for n, extra in pairs(table.copy(nametag_players)) do
+		local setting = extra
+
+		if setting == true then
+			setting = ctf_settings.get(minetest.get_player_by_name(n), "teammate_nametag_style")
+		end
 
 		if setting == "3" then
 			nametag_players[n] = nil
@@ -52,7 +56,7 @@ end
 
 local tags_hidden = false
 local update_timer = false
-local function update_playertags(time)
+function ctf_modebase.update_playertags(time)
 	if not update_timer and not tags_hidden then
 		update_timer = true
 		minetest.after(time or 1.2, function()
@@ -81,7 +85,7 @@ local function set_playertags_state(state)
 	if state == PLAYERTAGS_ON and tags_hidden then
 		tags_hidden = false
 
-		update_playertags(0)
+		ctf_modebase.update_playertags(0)
 	elseif state == PLAYERTAGS_OFF and not tags_hidden then
 		tags_hidden = true
 
@@ -159,7 +163,7 @@ ctf_settings.register("teammate_nametag_style", {
 	default = "1",
 	on_change = function(player, new_value)
 		minetest.log("action", "Player "..player:get_player_name().." changed their nametag setting")
-		update_playertags()
+		ctf_modebase.update_playertags()
 	end
 })
 
@@ -465,7 +469,7 @@ return {
 			map_treasures[k] = v
 		end
 
-		if #delete_queue > 0 then
+		if #delete_queue > 0 and delete_queue._map ~= ctf_map.current_map.dirname then
 			local p1, p2 = unpack(delete_queue)
 
 			for _, object_drop in pairs(minetest.get_objects_in_area(p1, p2)) do
@@ -505,8 +509,13 @@ return {
 		recent_rankings.on_match_end()
 
 		if ctf_map.current_map then
+			minetest.log("action",
+				"matchend: Match ended for map "..ctf_map.current_map.name..
+				" in mode "..(ctf_modebase.current_mode or "<nil>")..
+				". Duration: "..ctf_map.get_duration()
+			)
 			-- Queue deletion for after the players have left
-			delete_queue = {ctf_map.current_map.pos1, ctf_map.current_map.pos2}
+			delete_queue = {ctf_map.current_map.pos1, ctf_map.current_map.pos2, _map = ctf_map.current_map.dirname}
 		end
 	end,
 	-- If you set this in a mode def it will replace the call to ctf_teams.allocate_teams() in match.lua
@@ -675,7 +684,7 @@ return {
 		playertag.set(player, playertag.TYPE_ENTITY)
 
 		if player.set_observers then
-			update_playertags()
+			ctf_modebase.update_playertags()
 		end
 
 		drop_flag(pteam)
@@ -688,7 +697,7 @@ return {
 		playertag.set(player, playertag.TYPE_ENTITY)
 
 		if player.set_observers then
-			update_playertags()
+			ctf_modebase.update_playertags()
 		end
 
 		celebrate_team(pteam)
@@ -820,7 +829,7 @@ return {
 		playertag.set(player, playertag.TYPE_ENTITY)
 
 		if player.set_observers then
-			update_playertags()
+			ctf_modebase.update_playertags()
 		end
 
 		tp_player_near_flag(player)
